@@ -10,12 +10,15 @@ import com.cwc.e_commerce_app.repository.ProductRepository;
 import com.cwc.e_commerce_app.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class CartService {
     private final ProductRepository productRepository;
     private final CartItemsRepository cartItemsRepository;
@@ -78,16 +81,59 @@ public class CartService {
             return mapToDto(savedCartItem);
         }
     }
-    public void removeFromCart(Long userId, Long productId) {
-        // check of user exist
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
-        // check if product exist
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
-
-
+    public boolean removeFromCart(Long userId, Long productId) {
+        Optional<CartItem> byUserIdAndProductId = cartItemsRepository.findByUserIdAndProductId(userId, productId);
+        if(byUserIdAndProductId.isPresent())
+        {
+            cartItemsRepository.deleteByUserIdAndProductId(userId, productId);
+            return true;
+        }
+        else {
+            return false;
+        }
     }
+    // Increment the quantity of an existing cart item
+    public CartItemResponse incrementCartItemQuantity(Long userId, Long productId, Integer incrementBy) {
+        Optional<CartItem> cartItemOpt = cartItemsRepository.findByUserIdAndProductId(userId, productId);
+        if(cartItemOpt.isPresent()) {
+            if(incrementBy == null)
+            {
+                incrementBy = 1;
+            }
+            CartItem cartItem = cartItemOpt.get();
+            cartItem.setQuantity(cartItem.getQuantity() + incrementBy);
+            CartItem updatedCartItem = cartItemsRepository.save(cartItem);
+            return mapToDto(updatedCartItem);
+        } else {
+            throw new RuntimeException("Cart item not found for user id: " + userId + " and product id: " + productId);
+        }
+    }
+
+    // Decrement the quantity of an existing cart item and if quantity reaches zero, remove the item from cart.
+    public CartItemResponse decrementCartItemQuantity(Long userId, Long productId, Integer decrementBy) {
+        Optional<CartItem> cartItemOpt = cartItemsRepository.findByUserIdAndProductId(userId, productId);
+        if(cartItemOpt.isPresent()) {
+            if(decrementBy == null)
+            {
+                decrementBy = 1;
+            }
+            CartItem cartItem = cartItemOpt.get();
+            int newQuantity = cartItem.getQuantity() - decrementBy;
+            if(newQuantity > 0) {
+                cartItem.setQuantity(newQuantity);
+                CartItem updatedCartItem = cartItemsRepository.save(cartItem);
+                return mapToDto(updatedCartItem);
+            } else {
+                // remove the item from cart
+                cartItemsRepository.deleteByUserIdAndProductId(userId, productId);
+                return null; // or throw an exception or return a specific response indicating removal
+            }
+        } else {
+            throw new RuntimeException("Cart item not found for user id: " + userId + " and product id: " + productId);
+        }
+    }
+    // fetch cart items for a user
+
     private CartItemResponse mapToDto(CartItem cartItem) {
         return CartItemResponse.builder()
                 .id(cartItem.getId())
@@ -100,4 +146,19 @@ public class CartService {
                 .build();
     }
 
+    public List<CartItemResponse> getCartItemsByUserId(Long userId) {
+        List<CartItem> cartItems = cartItemsRepository.findAll().stream()
+                .filter(cartItem -> cartItem.getUser().getId().equals(userId))
+                .toList();
+        return cartItems.stream()
+                .map(this::mapToDto)
+                .toList();
+    }
+    // get all cart items
+    public List<CartItemResponse> getAllCartItems() {
+        List<CartItem> cartItems = cartItemsRepository.findAll();
+        return cartItems.stream()
+                .map(this::mapToDto)
+                .toList();
+    }
 }
