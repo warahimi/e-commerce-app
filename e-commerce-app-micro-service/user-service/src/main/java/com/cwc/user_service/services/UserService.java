@@ -1,0 +1,76 @@
+package com.cwc.user_service.services;
+
+import com.cwc.user_service.entities.User;
+import com.cwc.user_service.dto.UserRequest;
+import com.cwc.user_service.dto.UserResponse;
+import com.cwc.user_service.repository.UserRepository;
+import lombok.AllArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+@AllArgsConstructor
+public class UserService {
+    private final UserRepository userRepository;
+
+    public UserResponse save(UserRequest userRequest)
+    {
+        User saveUser = userRepository.save(mapToEntity(userRequest));
+        return mapToDto(saveUser);
+    }
+    public List<UserResponse> getAllUsers() {
+        List<User> users = userRepository.findAll();
+        return users.stream()
+                .map(this::mapToDto)
+                .toList();
+    }
+    public UserResponse getUserById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+        return mapToDto(user);
+    }
+
+    public UserResponse updateUser(Long id, UserRequest userRequest) {
+        User existingUser = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+        existingUser.setFirstName(userRequest.getFirstName());
+        existingUser.setLastName(userRequest.getLastName());
+        existingUser.setUsername(userRequest.getUsername());
+        existingUser.setEmail(userRequest.getEmail());
+        existingUser.setPhone(userRequest.getPhone());
+        existingUser.setRole(userRequest.getRole());
+        existingUser.setAddress(userRequest.getAddress());
+
+        User updatedUser = userRepository.save(existingUser);
+        return mapToDto(updatedUser);
+    }
+
+
+    private UserResponse mapToDto(User user)
+    {
+        return UserResponse.builder()
+                .id(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .role(user.getRole())
+                .address(user.getAddress())
+                .build();
+    }
+    private User mapToEntity(UserRequest userRequest)
+    {
+        return User.builder()
+                .firstName(userRequest.getFirstName())
+                .lastName(userRequest.getLastName())
+                .username(userRequest.getUsername())
+                .email(userRequest.getEmail())
+                .phone(userRequest.getPhone())
+                .role(userRequest.getRole())
+                .address(userRequest.getAddress())
+                .build();
+    }
+}
